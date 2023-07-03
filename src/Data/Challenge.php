@@ -9,7 +9,8 @@ class Challenge extends BaseData
         protected string $type,
         protected string $status,
         protected string $url,
-        protected string $token)
+        protected string $token
+    )
     {
 
     }
@@ -46,7 +47,7 @@ class Challenge extends BaseData
             "type"             => $this->type,
             "status"           => $this->status,
             "url"              => $this->url,
-            "toke"             => $this->token,
+            "token"            => $this->token,
         ];
     }
 }

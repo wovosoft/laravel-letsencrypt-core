@@ -248,14 +248,15 @@ class Client
                 );
 
                 foreach ($data['challenges'] as $challengeData) {
-                    $challenge = new Challenge(
-                        authorizationURL: $authorizationURL,
-                        type: $challengeData['type'],
-                        status: $challengeData['status'],
-                        url: $challengeData['url'],
-                        token: $challengeData['token']
+                    $authorization->addChallenge(
+                        challenge: new Challenge(
+                            authorizationURL: $authorizationURL,
+                            type: $challengeData['type'],
+                            status: $challengeData['status'],
+                            url: $challengeData['url'],
+                            token: $challengeData['token']
+                        )
                     );
-                    $authorization->addChallenge($challenge);
                 }
 
                 return $authorization->toArray();
