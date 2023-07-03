@@ -1,0 +1,41 @@
+{
+    "name": "wovosoft/laravel-letsencrypt-core",
+    "description": "Yet Another ACME client: a decoupled LetsEncrypt client",
+    "type": "package",
+    "keywords": [
+        "wovosoft",
+        "lets",
+        "acme",
+        "acmev2",
+        "v2",
+        "encrypt",
+        "ssl"
+    ],
+    "homepage": "https://wovosoft.com",
+    "license": "Apache-2.0",
+    "authors": [
+        {
+            "name": "Narayan Adhikary",
+            "homepage": "https://github.com/wovosoft/laravel-letsencrypt-core"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Wovosoft\\LaravelLetsencryptCore\\": "./src"
+        }
+    },
+    "require": {
+        "ext-openssl": "*",
+        "ext-json": "*"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Wovosoft\\LaravelLetsencryptCore\\LaravelLetsencryptCoreServiceProvider"
+            ],
+            "aliases": {
+                "LaravelTypescript": "Wovosoft\\LaravelLetsencryptCore\\Facades\\LaravelLetsencryptCore"
+            }
+        }
+    }
+}
