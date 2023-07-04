@@ -138,7 +138,7 @@ class Client
             $this->directories->newAccount,
             $this->signPayloadJWK(
                 [
-                    'contact'              => [
+                    'contact' => [
                         'mailto:' . $this->username,
                     ],
                     'termsOfServiceAgreed' => true,
@@ -203,7 +203,7 @@ class Client
             ->request($this->directories->newOrder, $this->signPayloadKid(
                 [
                     'identifiers' => collect($domains)->map(fn($domain) => [
-                        "type"  => "dns",
+                        "type" => "dns",
                         "value" => $domain
                     ])->toArray(),
                 ],
@@ -227,7 +227,7 @@ class Client
      * Obtain authorizations
      *
      * @param Order $order
-     * @return Collection<Authorization>
+     * @return Collection<int,Authorization>
      */
     public function authorize(Order $order): Collection
     {
@@ -266,8 +266,8 @@ class Client
     /**
      * Run a self-test for the authorization
      * @param Authorization $authorization
-     * @param string        $type
-     * @param int           $maxAttempts
+     * @param string $type
+     * @param int $maxAttempts
      * @return bool
      * @throws GuzzleException
      */
@@ -285,11 +285,11 @@ class Client
      * Validate a challenge
      *
      * @param Challenge $challenge
-     * @param int       $maxAttempts
+     * @param int $maxAttempts
      * @return bool
      * @throws Exception
      */
-    public function validate(Challenge $challenge, int $maxAttempts = 15): bool
+    public function validate(Challenge $challenge, int $maxAttempts = 15): bool|string
     {
         $this->request(
             $challenge->getUrl(),
@@ -298,21 +298,25 @@ class Client
             ], $challenge->getUrl())
         );
 
-        do {
-            $response = $this->request(
-                $challenge->getAuthorizationURL(),
-                $this->signPayloadKid(null, $challenge->getAuthorizationURL())
-            );
+        try {
+            do {
+                $response = $this->request(
+                    $challenge->getAuthorizationURL(),
+                    $this->signPayloadKid(null, $challenge->getAuthorizationURL())
+                );
 
-            $data = $response->json();
+                $data = $response->json();
 
-            if ($maxAttempts > 1 && $data['status'] != 'valid') {
-                sleep(ceil(15 / $maxAttempts));
-            }
-            $maxAttempts--;
-        } while ($maxAttempts > 0 && $data['status'] != 'valid');
+                if ($maxAttempts > 1 && $data['status'] != 'valid') {
+                    sleep(ceil(15 / $maxAttempts));
+                }
+                $maxAttempts--;
+            } while ($maxAttempts > 0 && $data['status'] != 'valid');
 
-        return (isset($data['status']) && $data['status'] == 'valid');
+            return (isset($data['status']) && $data['status'] == 'valid');
+        } catch (\Throwable $throwable) {
+            return $throwable->getMessage();
+        }
     }
 
     /**
@@ -336,7 +340,7 @@ class Client
             )
         );
 
-        $data = $response->object();
+        $data = $response->json();
         $certificateResponse = $this->request(
             $data['certificate'],
             $this->signPayloadKid(null, $data['certificate'])
@@ -404,8 +408,8 @@ class Client
     protected function getSelfTestClient(): HttpClient
     {
         return new HttpClient([
-            'verify'          => false,
-            'timeout'         => 10,
+            'verify' => false,
+            'timeout' => 10,
             'connect_timeout' => 3,
             'allow_redirects' => true,
         ]);
@@ -482,9 +486,9 @@ class Client
     protected function getSelfTestDNSClient(): HttpClient
     {
         return new HttpClient([
-            'base_uri'        => 'https://cloudflare-dns.com',
+            'base_uri' => 'https://cloudflare-dns.com',
             'connect_timeout' => 10,
-            'headers'         => [
+            'headers' => [
                 'Accept' => 'application/dns-json',
             ],
         ]);
@@ -554,9 +558,9 @@ class Client
     protected function getJWKHeader(): array
     {
         return [
-            'e'   => Helper::toSafeString(Helper::getKeyDetails($this->getAccountKey())['rsa']['e']),
+            'e' => Helper::toSafeString(Helper::getKeyDetails($this->getAccountKey())['rsa']['e']),
             'kty' => 'RSA',
-            'n'   => Helper::toSafeString(Helper::getKeyDetails($this->getAccountKey())['rsa']['n']),
+            'n' => Helper::toSafeString(Helper::getKeyDetails($this->getAccountKey())['rsa']['n']),
         ];
     }
 
@@ -575,10 +579,10 @@ class Client
             $this->nonce = $response->header('Replay-Nonce');
         }
         return [
-            'alg'   => 'RS256',
-            'jwk'   => $this->getJWKHeader(),
+            'alg' => 'RS256',
+            'jwk' => $this->getJWKHeader(),
             'nonce' => $this->nonce,
-            'url'   => $url,
+            'url' => $url,
         ];
     }
 
@@ -595,10 +599,10 @@ class Client
             ->head($this->directories->newNonce);
 
         return [
-            "alg"   => "RS256",
-            "kid"   => $this->account->getAccountURL(),
+            "alg" => "RS256",
+            "kid" => $this->account->getAccountURL(),
             "nonce" => $response->header('Replay-Nonce'),
-            "url"   => $url,
+            "url" => $url,
         ];
     }
 
@@ -624,7 +628,7 @@ class Client
 
         return [
             'protected' => $protected,
-            'payload'   => $payload,
+            'payload' => $payload,
             'signature' => Helper::toSafeString($signature),
         ];
     }
@@ -651,7 +655,7 @@ class Client
 
         return [
             'protected' => $protected,
-            'payload'   => $payload,
+            'payload' => $payload,
             'signature' => Helper::toSafeString($signature),
         ];
     }
