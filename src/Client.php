@@ -259,7 +259,7 @@ class Client
                     );
                 }
 
-                return $authorization->toArray();
+                return $authorization;
             });
     }
 
@@ -286,7 +286,7 @@ class Client
      *
      * @param Challenge $challenge
      * @param int $maxAttempts
-     * @return bool
+     * @return bool|string
      * @throws Exception
      */
     public function validate(Challenge $challenge, int $maxAttempts = 15): bool|string

@@ -125,8 +125,8 @@ class Authorization extends BaseData
             "domain" => $this->domain,
             "expires" => $this->expires,
             "challenges" => collect($this->challenges)->map(fn(Challenge $challenge) => $challenge->toArray())->toArray(),
-//            "http_challenge" => $this->getHttpChallenge()?->toArray(),
-//            "dns_challenge" => $this->getDnsChallenge()?->toArray(),
+            "http_challenge" => $this->getHttpChallenge()?->toArray(),
+            "dns_challenge" => $this->getDnsChallenge()?->toArray(),
             "file" => $this->getFile()?->toArray(),
             "txt_record" => $this->getTxtRecord()?->toArray(),
         ];
