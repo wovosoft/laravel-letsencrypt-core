@@ -1,5 +1,10 @@
 Inspired by https://github.com/afosto/yaac
 
+```markdown
+This version is modified from the original https://github.com/afosto/yaac, optimized
+for laravel use case.
+```
+
 # yaac - Yet another ACME client
 
 Written in PHP, this client aims to be a simplified and decoupled Let’s Encrypt client, based on [ACME V2](https://tools.ietf.org/html/rfc8555).
