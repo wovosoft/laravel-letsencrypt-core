@@ -3,6 +3,7 @@
 namespace Wovosoft\LaravelLetsencryptCore;
 
 use Illuminate\Support\ServiceProvider;
+use Wovosoft\LaravelLetsencryptCore\Console\Commands\Ssl;
 
 class LaravelLetsencryptCoreServiceProvider extends ServiceProvider
 {
@@ -58,7 +59,7 @@ class LaravelLetsencryptCoreServiceProvider extends ServiceProvider
 
         // Registering package commands.
         $this->commands([
-//            TypescriptModelTransformer::class,
+            Ssl::class
         ]);
     }
 }
