@@ -5,10 +5,12 @@ namespace Wovosoft\LaravelLetsencryptCore\Console\Commands;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use Wovosoft\LaravelLetsencryptCore\Client;
 use Wovosoft\LaravelLetsencryptCore\Data\Authorization;
 use Wovosoft\LaravelLetsencryptCore\Data\Order;
 use Wovosoft\LaravelLetsencryptCore\Enums\Modes;
+use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\outro;
 use function Laravel\Prompts\select;
 use function Laravel\Prompts\spin;
@@ -38,8 +40,8 @@ class Ssl extends Command
 
     private array $domains;
     private Order $order;
-    private array $selfTestCases = [];
-    private bool $isLocallyVerified = false;
+    private array $selfTestCases     = [];
+    private bool  $isLocallyVerified = false;
 
     /**
      * Execute the console command.
@@ -67,8 +69,8 @@ class Ssl extends Command
         $this->info("With DNS validation, after the selfTest has confirmed that DNS has been updated, it is recommended you wait some additional time before proceeding, e.g. sleep(30);. This is because Let’s Encrypt will perform multiple viewpoint validation, and your DNS provider may not have completed propagating the changes across their network.\nIf you proceed too soon, Let's Encrypt will fail to validate.");
 
         $case = select(
-            label: 'Select Test Case',
-            options: array_keys($this->selfTestCases),
+            label   : 'Select Test Case',
+            options : array_keys($this->selfTestCases),
             required: true
         );
 
@@ -76,18 +78,27 @@ class Ssl extends Command
             callback: function () use ($case) {
                 return $this->client->selfTest(
                     authorization: $this->selfTestCases[$case],
-                    type: $case,
+                    type         : $case,
                 );
             },
-            message: 'Verifying Your Configuration',
+            message : 'Verifying Your Configuration',
         );
 
         if (!$result) {
             $this->error("Could not verify ownership via $case");
         } else {
-            $isValidatedOnline = $this->validateOnline($this->selfTestCases[$case], $case);
+            $this->info("Your configuration has been verified locally via $case");
+
+            $isValidatedOnline = spin(
+                callback: fn() => $this->validateOnline($this->selfTestCases[$case], $case),
+                message : "Validating Online..."
+            );
+
             if ($isValidatedOnline) {
-                dump($this->getCertificates());
+                $this->info("Your configuration has been verified online via $case");
+                $this->getCertificates();
+            } else {
+                $this->error("Unable to validate online");
             }
         }
     }
@@ -99,26 +110,34 @@ class Ssl extends Command
     {
         $isReady = spin(
             callback: fn() => $this->client->isReady($this->order),
-            message: "Checking Order..."
+            message : "Checking Order..."
         );
 
-        if (!$isReady) {
-            $this->error("Order is not ready");
+        if ($isReady) {
+            $certificates = spin(
+                callback: function () {
+                    $certificate = $this->client->getCertificate($this->order);
+
+                    return [
+                        "certificate.cert"         => $certificate->getCertificate(),
+                        "private.key"              => $certificate->getPrivateKey(),
+                        "domain_certificate"       => $certificate->getCertificate(false),
+                        "intermediate_certificate" => $certificate->getIntermediate(),
+                    ];
+                },
+                message : "Generating SSL Certificates..."
+            );
+
+            foreach ($certificates as $name => $content) {
+                $path = config("laravel-letsencrypt-core.verification_file_storage_directory") . "/$name";
+                File::put($path, $content);
+                $this->info("$path Generated");
+            }
+
+            return $certificates;
         }
-
-        return spin(
-            callback: function () {
-                $certificate = $this->client->getCertificate($this->order);
-
-                return [
-                    "certificate.cert" => $certificate->getCertificate(),
-                    "private.key" => $certificate->getPrivateKey(),
-                    "domain_certificate" => $certificate->getCertificate(false),
-                    "intermediate_certificate" => $certificate->getIntermediate(),
-                ];
-            },
-            message: "Generating SSL Certificates..."
-        );
+        $this->error("Order is not ready");
+        exit();
     }
 
     /**
@@ -139,7 +158,7 @@ class Ssl extends Command
         foreach ($this->authorizations as $authorization) {
             //push test cases
             $this->selfTestCases[Client::VALIDATION_HTTP] = $authorization;
-            $this->selfTestCases[Client::VALIDATION_DNS] = $authorization;
+            $this->selfTestCases[Client::VALIDATION_DNS]  = $authorization;
 
 
             outro("HTTP Authorization for {$authorization->getDomain()}");
@@ -154,9 +173,10 @@ class Ssl extends Command
 
             $this->info("2. File Should be accessible at \"{$authorization->getDomain()}/.well-known/acme-challenge/{$file->getFilename()}\"");
 
+
             table(
                 headers: ['File Name', 'File Content'],
-                rows: [
+                rows   : [
                     [
                         $file->getFilename(),
                         $file->getContents()
@@ -164,18 +184,36 @@ class Ssl extends Command
                 ]
             );
 
+
             $txtRecord = $authorization->getTxtRecord();
-            outro("DNS Authorization for {$authorization->getDomain()}");
-            $this->showDnsAuthorizationHints();
-            table(
-                headers: ['Record Name', 'Record Value'],
-                rows: [
-                    [
-                        $txtRecord->getName(),
-                        $txtRecord->getValue()
+            if ($txtRecord) {
+                outro("DNS Authorization for {$authorization->getDomain()}");
+                $this->showDnsAuthorizationHints();
+                table(
+                    headers: ['Record Name', 'Record Value'],
+                    rows   : [
+                        [
+                            $txtRecord?->getName(),
+                            $txtRecord?->getValue()
+                        ]
                     ]
-                ]
-            );
+                );
+            }
+
+
+            $shouldStoreFile = confirm(label: 'Store HTTP Verification File?');
+            if ($shouldStoreFile) {
+                $filePath = config("laravel-letsencrypt-core.verification_file_storage_directory") . "/{$file->getFilename()}";
+
+                if (!$filePath) {
+                    $this->error("File Path is required. Please set verification_file_storage_directory in config file.");
+                    exit();
+                }
+
+                File::put($filePath, $file->getContents());
+                $this->info("Verification File Store at: $filePath");
+
+            }
         }
 
         return $this;
@@ -187,11 +225,11 @@ class Ssl extends Command
     private function createOrderAndSetAuthorizations(): static
     {
         $domains = text(
-            label: "Domains",
+            label      : "Domains",
             placeholder: "Write down the domains",
-            default: "mahfuj-pos.wovosoft.com",
-            required: true,
-            hint: "Domains Comma Separated",
+            default    : "bkb-resources.bkbjanala.site",
+            required   : true,
+            hint       : "Domains Comma Separated",
         );
 
         $this->domains = str($domains)->explode(",")->toArray();
@@ -203,14 +241,14 @@ class Ssl extends Command
                         domains: $this->domains,
                     );
             },
-            message: 'Creating Order...'
+            message : 'Creating Order...'
         );
 
         spin(
             callback: function () {
                 $this->authorizations = $this->client->authorize($this->order);
             },
-            message: 'Fetching Authorizations...'
+            message : 'Fetching Authorizations...'
         );
 
 
@@ -223,20 +261,20 @@ class Ssl extends Command
     private function createClient(): static
     {
         $username = text(
-            label: 'Enter User Name (Email Address)',
+            label      : 'Enter User Name (Email Address)',
             placeholder: 'Email Address',
-            default: 'narayanadhikary24@gmail.com',
-            required: true,
-            hint: "Let's Encrypt Email Address"
+            default    : 'narayanadhikary24@gmail.com',
+            required   : true,
+            hint       : "Let's Encrypt Email Address"
         );
 
         $mode = select(
-            label: 'Select Mode',
-            options: [
+            label   : 'Select Mode',
+            options : [
                 Modes::Staging->value => Modes::Staging->name,
-                Modes::Live->value => Modes::Live->name,
+                Modes::Live->value    => Modes::Live->name,
             ],
-            default: Modes::Staging->value,
+            default : Modes::Staging->value,
             required: true,
         );
 
@@ -244,11 +282,11 @@ class Ssl extends Command
         spin(
             callback: function () use ($username, $mode) {
                 $this->client = new Client(
-                    mode: Modes::tryFrom($mode),
+                    mode    : Modes::tryFrom($mode),
                     username: $username,
                 );
             },
-            message: 'Creating/Fetching Client Information...'
+            message : 'Creating/Fetching Client Information...'
         );
 
         return $this;

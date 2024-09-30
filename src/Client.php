@@ -107,7 +107,7 @@ class Client
 
     protected function request($url, array $payload = [], string $method = 'POST'): PromiseInterface|Response
     {
-        $response = $this->getClient()->$method($url, $payload);
+        $response    = $this->getClient()->$method($url, $payload);
         $this->nonce = $response->header('Replay-Nonce');
 
         return $response;
@@ -122,8 +122,8 @@ class Client
                 Helper::getNewKey($this->keyLength)
             );
         }
-        $privateKey = $this->filesystem->get($this->getPath('account.pem'));
-        $privateKey = openssl_pkey_get_private($privateKey);
+        $privateKey              = $this->filesystem->get($this->getPath('account.pem'));
+        $privateKey              = openssl_pkey_get_private($privateKey);
         $this->privateKeyDetails = openssl_pkey_get_details($privateKey);
     }
 
@@ -138,7 +138,7 @@ class Client
             $this->directories->newAccount,
             $this->signPayloadJWK(
                 [
-                    'contact' => [
+                    'contact'              => [
                         'mailto:' . $this->username,
                     ],
                     'termsOfServiceAgreed' => true,
@@ -166,13 +166,13 @@ class Client
         $data = $this->request($url, $this->signPayloadKid(null, $url))->json();
 
         return new Order(
-            domains: collect($data['identifiers'])->map(fn($identifier) => $identifier['value'])->toArray(),
-            url: $url,
-            status: $data['status'],
-            expiresAt: $data['expires'],
-            identifiers: $data['identifiers'],
+            domains       : collect($data['identifiers'])->map(fn($identifier) => $identifier['value'])->toArray(),
+            url           : $url,
+            status        : $data['status'],
+            expiresAt     : $data['expires'],
+            identifiers   : $data['identifiers'],
             authorizations: $data['authorizations'],
-            finalizeURL: $data['finalize']
+            finalizeURL   : $data['finalize']
         );
     }
 
@@ -203,7 +203,7 @@ class Client
             ->request($this->directories->newOrder, $this->signPayloadKid(
                 [
                     'identifiers' => collect($domains)->map(fn($domain) => [
-                        "type" => "dns",
+                        "type"  => "dns",
                         "value" => $domain
                     ])->toArray(),
                 ],
@@ -212,14 +212,18 @@ class Client
 
         $data = $response->json();
 
+        if (data_get($data, 'status') == 429) {
+            throw new Exception(data_get($data, 'detail'));
+        }
+
         return new Order(
-            domains: $domains,
-            url: $response->header('Location'),
-            status: $data['status'],
-            expiresAt: $data['expires'],
-            identifiers: $data['identifiers'],
-            authorizations: $data['authorizations'],
-            finalizeURL: $data['finalize']
+            domains       : $domains,
+            url           : $response->header('Location'),
+            status        : $data['status'] ?? null,
+            expiresAt     : $data['expires'] ?? null,
+            identifiers   : $data['identifiers'] ?? null,
+            authorizations: $data['authorizations'] ?? null,
+            finalizeURL   : $data['finalize'] ?? null
         );
     }
 
@@ -242,19 +246,19 @@ class Client
                 $data = $response->json();
 
                 $authorization = new Authorization(
-                    domain: $data['identifier']['value'],
+                    domain : $data['identifier']['value'],
                     expires: $data['expires'],
-                    digest: $this->getDigest()
+                    digest : $this->getDigest()
                 );
 
                 foreach ($data['challenges'] as $challengeData) {
                     $authorization->addChallenge(
                         challenge: new Challenge(
                             authorizationURL: $authorizationURL,
-                            type: $challengeData['type'],
-                            status: $challengeData['status'],
-                            url: $challengeData['url'],
-                            token: $challengeData['token']
+                            type            : $challengeData['type'],
+                            status          : $challengeData['status'],
+                            url             : $challengeData['url'],
+                            token           : $challengeData['token']
                         )
                     );
                 }
@@ -313,6 +317,10 @@ class Client
                 $maxAttempts--;
             } while ($maxAttempts > 0 && $data['status'] != 'valid');
 
+//            if (data_get($data, 'status') == 'invalid') {
+//                $challenge->getUrl();
+//            }
+
             return (isset($data['status']) && $data['status'] == 'valid');
         } catch (\Throwable $throwable) {
             return $throwable->getMessage();
@@ -329,8 +337,8 @@ class Client
     public function getCertificate(Order $order): Certificate
     {
         $privateKey = Helper::getNewKey($this->keyLength);
-        $csr = Helper::getCsr($order->getDomains(), $privateKey);
-        $der = Helper::toDer($csr);
+        $csr        = Helper::getCsr($order->getDomains(), $privateKey);
+        $der        = Helper::toDer($csr);
 
         $response = $this->request(
             $order->getFinalizeURL(),
@@ -341,11 +349,12 @@ class Client
         );
 
         $data = $response->json();
+
         $certificateResponse = $this->request(
             $data['certificate'],
             $this->signPayloadKid(null, $data['certificate'])
         );
-        $chain = preg_replace('/^[ \t]*[\r\n]+/m', '', (string)$certificateResponse->body());
+        $chain               = preg_replace('/^[ \t]*[\r\n]+/m', '', (string)$certificateResponse->body());
         return new Certificate($privateKey, $csr, $chain);
     }
 
@@ -369,13 +378,13 @@ class Client
             ));
 
         $this->nonce = $response->header('Replay-Nonce');
-        $data = $response->json();
+        $data        = $response->json();
 
         return new Account(
-            contact: $data['contact'],
-            createdAt: (new \DateTime())->setTimestamp(strtotime($data['createdAt'])),
-            isValid: ($data['status'] === 'valid'),
-            initialIp: $data['initialIp'],
+            contact   : $data['contact'],
+            createdAt : (new \DateTime())->setTimestamp(strtotime($data['createdAt'])),
+            isValid   : ($data['status'] === 'valid'),
+            initialIp : $data['initialIp'],
             accountURL: $response->header('Location')
         );
     }
@@ -390,7 +399,7 @@ class Client
             $config = [
                 'base_uri' => match ($this->mode) {
                     Modes::Staging => self::DIRECTORY_STAGING,
-                    Modes::Live => self::DIRECTORY_LIVE
+                    Modes::Live    => self::DIRECTORY_LIVE
                 },
             ];
             if ($this->source_ip) {
@@ -408,8 +417,8 @@ class Client
     protected function getSelfTestClient(): HttpClient
     {
         return new HttpClient([
-            'verify' => false,
-            'timeout' => 10,
+            'verify'          => false,
+            'timeout'         => 10,
             'connect_timeout' => 3,
             'allow_redirects' => true,
         ]);
@@ -462,7 +471,7 @@ class Client
                     ],
                 ]
             );
-            $data = json_decode((string)$response->getBody(), true);
+            $data     = json_decode((string)$response->getBody(), true);
             if (isset($data['Answer'])) {
                 foreach ($data['Answer'] as $result) {
                     if (trim($result['data'], "\"") == $authorization->getTxtRecord()->getValue()) {
@@ -486,9 +495,9 @@ class Client
     protected function getSelfTestDNSClient(): HttpClient
     {
         return new HttpClient([
-            'base_uri' => 'https://cloudflare-dns.com',
+            'base_uri'        => 'https://cloudflare-dns.com',
             'connect_timeout' => 10,
-            'headers' => [
+            'headers'         => [
                 'Accept' => 'application/dns-json',
             ],
         ]);
@@ -558,9 +567,9 @@ class Client
     protected function getJWKHeader(): array
     {
         return [
-            'e' => Helper::toSafeString(Helper::getKeyDetails($this->getAccountKey())['rsa']['e']),
+            'e'   => Helper::toSafeString(Helper::getKeyDetails($this->getAccountKey())['rsa']['e']),
             'kty' => 'RSA',
-            'n' => Helper::toSafeString(Helper::getKeyDetails($this->getAccountKey())['rsa']['n']),
+            'n'   => Helper::toSafeString(Helper::getKeyDetails($this->getAccountKey())['rsa']['n']),
         ];
     }
 
@@ -575,14 +584,14 @@ class Client
     {
         //Require a nonce to be available
         if ($this->nonce === null) {
-            $response = $this->getClient()->head($this->directories->newNonce);
+            $response    = $this->getClient()->head($this->directories->newNonce);
             $this->nonce = $response->header('Replay-Nonce');
         }
         return [
-            'alg' => 'RS256',
-            'jwk' => $this->getJWKHeader(),
+            'alg'   => 'RS256',
+            'jwk'   => $this->getJWKHeader(),
             'nonce' => $this->nonce,
-            'url' => $url,
+            'url'   => $url,
         ];
     }
 
@@ -599,10 +608,10 @@ class Client
             ->head($this->directories->newNonce);
 
         return [
-            "alg" => "RS256",
-            "kid" => $this->account->getAccountURL(),
+            "alg"   => "RS256",
+            "kid"   => $this->account->getAccountURL(),
             "nonce" => $response->header('Replay-Nonce'),
-            "url" => $url,
+            "url"   => $url,
         ];
     }
 
@@ -616,8 +625,8 @@ class Client
      */
     protected function signPayloadJWK($payload, $url): array
     {
-        $payload = is_array($payload) ? str_replace('\\/', '/', json_encode($payload)) : '';
-        $payload = Helper::toSafeString($payload);
+        $payload   = is_array($payload) ? str_replace('\\/', '/', json_encode($payload)) : '';
+        $payload   = Helper::toSafeString($payload);
         $protected = Helper::toSafeString(json_encode($this->getJWK($url)));
 
         $result = openssl_sign($protected . '.' . $payload, $signature, $this->getAccountKey(), "SHA256");
@@ -628,7 +637,7 @@ class Client
 
         return [
             'protected' => $protected,
-            'payload' => $payload,
+            'payload'   => $payload,
             'signature' => Helper::toSafeString($signature),
         ];
     }
@@ -645,7 +654,7 @@ class Client
     {
         $payload = is_array($payload) ? str_replace('\\/', '/', json_encode($payload)) : '';
 
-        $payload = Helper::toSafeString($payload);
+        $payload   = Helper::toSafeString($payload);
         $protected = Helper::toSafeString(json_encode($this->getKID($url)));
 
         $result = openssl_sign($protected . '.' . $payload, $signature, $this->getAccountKey(), "SHA256");
@@ -655,7 +664,7 @@ class Client
 
         return [
             'protected' => $protected,
-            'payload' => $payload,
+            'payload'   => $payload,
             'signature' => Helper::toSafeString($signature),
         ];
     }
