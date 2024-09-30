@@ -210,17 +210,21 @@ class Client
                 $this->directories->newOrder
             ));
 
-        $data = $response->json();
+        if ($response->successful()) {
+            $data = $response->json();
 
-        return new Order(
-            domains: $domains,
-            url: $response->header('Location'),
-            status: $data['status'],
-            expiresAt: $data['expires'],
-            identifiers: $data['identifiers'],
-            authorizations: $data['authorizations'],
-            finalizeURL: $data['finalize']
-        );
+            return new Order(
+                domains: $domains,
+                url: $response->header('Location'),
+                status: $data['status'],
+                expiresAt: $data['expires'],
+                identifiers: $data['identifiers'],
+                authorizations: $data['authorizations'],
+                finalizeURL: $data['finalize']
+            );
+        }
+
+        throw new Exception($response->json('detail'), $response->status());
     }
 
     /**
@@ -341,6 +345,7 @@ class Client
         );
 
         $data = $response->json();
+
         $certificateResponse = $this->request(
             $data['certificate'],
             $this->signPayloadKid(null, $data['certificate'])
