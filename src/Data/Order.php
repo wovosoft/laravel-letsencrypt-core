@@ -10,13 +10,13 @@ class Order extends BaseData
     protected Carbon $expiresAt;
 
     public function __construct(
-        protected array  $domains,
-        protected string $url,
-        protected string $status,
-        string           $expiresAt,
-        protected array  $identifiers,
-        protected array  $authorizations,
-        protected string $finalizeURL
+        protected array   $domains,
+        protected string  $url,
+        protected string  $status,
+        ?string           $expiresAt,
+        protected ?array  $identifiers,
+        protected ?array  $authorizations,
+        protected ?string $finalizeURL
     )
     {
         //Handle the micro time date format
@@ -96,13 +96,13 @@ class Order extends BaseData
     public function toArray(): array
     {
         return [
-            "domains" => $this->getDomains(),
-            "url" => $this->getUrl(),
-            "status" => $this->getStatus(),
-            "expiresAt" => $this->getExpiresAt(),
-            "identifiers" => $this->getIdentifiers(),
+            "domains"        => $this->getDomains(),
+            "url"            => $this->getUrl(),
+            "status"         => $this->getStatus(),
+            "expiresAt"      => $this->getExpiresAt(),
+            "identifiers"    => $this->getIdentifiers(),
             "authorizations" => $this->getAuthorizationURLs(),
-            "finalizeURL" => $this->getFinalizeURL(),
+            "finalizeURL"    => $this->getFinalizeURL(),
         ];
     }
 
